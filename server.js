@@ -1,3 +1,5 @@
+// require {dbName, chatCollection, userCollection, profileCollection, directMessageCollection, } from "./consts";
+
 const express = require('express');
 const http = require('http');
 const path = require('path');
@@ -8,19 +10,40 @@ const jwt = require('jsonwebtoken');
 const app = express();
 const server = http.createServer(app);
 const ObjectId = require('mongodb').ObjectId
+const dotenv = require('dotenv');
 const io = new Server(server, {
     cors: {
         origin: "http://localhost:3000",
         methods: ["GET", "POST"]
     }
 });
-const port = 8000;
-const secret = "haley";
+dotenv.config();
+//Config variables
+const port = process.env.PORT || 8000;
+const secret = process.env.JWTSECRET;
+const saltRounds = process.env.SALTROUNDS;
+const mongoUrl = process.env.MONGODB;
+
+//mongodb consts
+const dbName = "chat";
+const chatCollection = "messages";
+const userCollection = "users";
+const profileCollection = "profile";
+const directMessageCollection = "directMessage";
+const conversationCollection = "conversation"
+const privateMessageCollection = "privateMessage";
+
+//events
+const eventUserNotFound = "userNotFound";
+const eventLoginFailed = "login-fail";
+const eventLoginSuccess = "login-success";
+const conversationCreateSuccess = "conversationCreateSuccess";
+const newPrivateMessage = "newPrivateMessage";
+
+
 var messages = [];
-const saltRounds = 10;
 // I'm maintaining all active connections in this object
 const clients = {};
-
 // This code generates unique userid for everyuser.
 const getUniqueID = () => {
     const s4 = () => Math.floor((1 + Math.random()) * 0x10000).toString(16).substring(1);
@@ -28,15 +51,14 @@ const getUniqueID = () => {
 };
 
 async function handleLogin(db, connection, data){
+    console.log('handleLogin Called');
     //hash the incoming password
     //query database for username, compare hashes
     //return true or false
-    console.log("test)");
     const user = data.data;
     const query = {username : user.username};
-    var profile = await getDocument(db, 'profile', query);
+    var profile = await getDocument(db, profileCollection, query);
     console.log(profile);
-    console.log('omg');
     if(profile.length) {
         profile = profile[0];
         if (!profile.token) {
@@ -45,13 +67,11 @@ async function handleLogin(db, connection, data){
             profile.token = newToken;
             const query = {_id: new ObjectId(profile._id)}
             const update = {$set: {token: newToken}};
-            updateOneDocument(db, 'profile', query, update).then(function (res) {
+            updateOneDocument(db, profileCollection, query, update).then(function (res) {
                 console.log(res);
-
             })
         }
-        var hash = await getDocument(db, 'users', {_id: profile.hashid});
-        // console.log(hash);
+        var hash = await getDocument(db, userCollection, {_id: profile.hashid});
         hash = hash[0];
         bcrypt.compare(user.password, hash.hash, function (err, res) {
             if (res) {
@@ -75,16 +95,13 @@ async function handleLogin(db, connection, data){
     }
 }
 async function handleSignup(db, connection, data){
+    console.log("handleSignup Called");
     console.log(data);
     const user = data.data;
     bcrypt.genSalt(saltRounds, function(err, salt) {
         bcrypt.hash(user.password, salt, async function(err, hash) {
             // Store hash in database here
             console.log(hash);
-            var today = new Date();
-            var date = today.getFullYear()+'-'+(today.getMonth()+1)+'-'+today.getDate();
-            var time = today.getHours() + ":" + today.getMinutes() + ":" + today.getSeconds();
-            var dateTime = date+' '+time;
             let hashKey = new ObjectId();
             let profileKey = new ObjectId();
             const obj = {
@@ -99,7 +116,7 @@ async function handleSignup(db, connection, data){
                         _id: profileKey,
                         hashid: hashKey,
                         username: user.username,
-                        signupTime: dateTime,
+                        signupTime: new Date(),
                         token: token
                     }
 
@@ -118,8 +135,121 @@ async function handleSignup(db, connection, data){
         });
     });
 }
-async function temp(db, collection, obj){
-    await insertNewMessage(db, collection, obj);
+async function getDirectMessages(db, connection, data){
+    console.log("getDirectMessages Called")
+    //This is now deprecated probably
+    const conversation_query = {recipients: new ObjectId(data.user._id)};
+    const allUsers = await getDocument(db, profileCollection, {});
+    connection.emit('returnAllUsers', allUsers);
+    let conversations = await getDocument(db, 'conversation', conversation_query);
+    // get all Conversations with
+
+    const conversation = {
+        _id: "",
+        recipients: [],
+        body: "",
+        sendDate: ""
+    }
+}
+async function handleCreateConversation(db, connection, data){
+    console.log('handleCreateConversation Called');
+    let conversationId = new ObjectId();
+    const recipients = [...data.recipients,data.user._id];
+    var ids = [];
+    for(const item of recipients){
+        ids.push(new ObjectId(item));
+    }
+    let conversation = {
+        _id: new ObjectId(conversationId),
+        recipients: ids,
+        created: new Date(),
+    }
+    insertNewMessage(db, conversationCollection, conversation).then(function(res){
+        console.log(res);
+        connection.join(conversationId.toString());
+        connection.emit(conversationCreateSuccess, conversation);
+    });
+}
+async function getMessagesByConversation(db, connection, data){
+    console.log("getMessagesByConversation Called");
+    console.log(data);
+    let id = new ObjectId(data.conversation._id);
+    const query = {cid: id};
+    const conversationQuery = {_id: id};
+    console.log(query);
+    console.log(new ObjectId(data.conversation._id))
+    const messages = await getDocument(db, privateMessageCollection, query);
+    const conversation = (await getDocument(db, conversationCollection, conversationQuery))[0];
+    console.log(conversation);
+    const conversationUsers = await getDocument(db, profileCollection, {_id: {$in: conversation.recipients}});
+    const usernameLookup = {};
+    for(const user of conversationUsers){
+        usernameLookup[user._id] = user.username;
+    }
+    console.log(messages);
+    // connection.join(data.conversationId.toString());
+    connection.join('test', function(){
+        console.log('now in rooms: ' + connection.rooms);
+    });
+    const returnData = {
+        messages: messages,
+        usernameLookup: usernameLookup
+    }
+    console.log(returnData);
+    connection.emit('returnMessagesByConversation', returnData);
+}
+async function handleNewPrivateMessage(db, connection, data){
+    console.log('handleNewPrivateMessage Called');
+    console.log(data);
+    let privateMessage = {
+        _id: new ObjectId(),
+        author: new ObjectId(data.user._id),
+        cid: new ObjectId(data.cid),
+        body: data.message,
+        created: new Date()
+    }
+    await insertNewMessage(db, privateMessageCollection, privateMessage);
+    privateMessage.author_name = data.user.username;
+    // io.to(data.message.cid.toString()).emit('broadcastNewPrivateMessage',privateMessage);
+    io.to('test').emit('broadcastNewPrivateMessage', privateMessage);
+}
+async function getConversationsByUser(db, connection, data){
+    console.log('getConversationsByUser Called');
+    let query = {recipients: new ObjectId(data.user._id)}
+    let conversations = await getDocument(db, conversationCollection, query);
+    var people = [];
+    console.log('conversations flag');
+    console.log(conversations);
+    for(const item of conversations){
+        console.log('hasss');
+        console.log(item);
+        people.push(...item.recipients);
+    }
+    console.log('ttt');
+    console.log(people);
+    const userQuery = {'_id': {$in: people}};
+    let usersInContact = await getDocument(db, profileCollection, userQuery);
+    console.log(usersInContact);
+    const nameLookup = {};
+    for(const user of usersInContact){
+        nameLookup[new ObjectId(user._id)] = user.username;
+    }
+    var newConvo = [];
+    for(var item of conversations){
+        console.log(item);
+        console.log('omgg');
+        const names = {};
+        for(const person of item.recipients){
+            console.log(person);
+            names[person] = nameLookup[person]
+        }
+        item.names = names;
+        newConvo.push(item);
+    }
+    console.log(newConvo);
+    connection.emit('recipients', newConvo);
+    console.log('users in contct');
+    console.log(nameLookup);
 }
 async function determineTask(db, connection, data) {
     try {
@@ -147,11 +277,28 @@ async function determineTask(db, connection, data) {
             case "signup":
                 await handleSignup(db, connection, data);
                 break;
+            case "getDirectMessages":
+                await getDirectMessages(db, connection, data);
+                break;
+            case 'createConversation':
+                console.log(data);
+                await handleCreateConversation(db, connection, data);
+                break;
+            case 'newPrivateMessage':
+                console.log('help')
+                console.log(data);
+                await handleNewPrivateMessage(db, connection, data);
+                break;
+            case 'getMessagesByConversation':
+                await getMessagesByConversation(db, connection, data);
+                break;
+            case 'getConversationsByUser':
+                await getConversationsByUser(db, connection, data);
+                break;
 
 
         }
     } catch (error) {
-        console.log("unclear error")
         console.log(error);
     }
 }
@@ -174,6 +321,7 @@ async function constructWebSocketServer(db) {
             console.log(key);
         }
         const token = socket.handshake.auth.token;
+        console.log(token);
         if(token) {
             jwt.verify(token, secret, async function (err, decoded) {
                 if (err) {
@@ -196,7 +344,7 @@ async function constructWebSocketServer(db) {
         // console.log(socket.handshake.headers);
         socket.on('message', (data) => {
             determineTask(db, socket, data)
-        })
+        });
         socket.on("disconnect", () => {
             delete clients[socket.id];
         });
@@ -263,7 +411,8 @@ async function updateOneDocument(databaseName, collectionName, filter, update){
 }
 
 async function connectToMongoDB() {
-    const url = "mongodb+srv://real:testpass@chat.0flzu.mongodb.net/myFirstDatabase?retryWrites=true&w=majority"
+    // const url = "mongodb+srv://real:testpass@chat.0flzu.mongodb.net/myFirstDatabase?retryWrites=true&w=majority"
+    const url = mongoUrl;
     const client = new MongoClient(url);
     client.connect(function(err, db){
         if(err){

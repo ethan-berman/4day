@@ -1,12 +1,40 @@
 # Getting Started with Create React App
+This is a practice project to demonstrate websockets, react, node js, and mongodb.
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+## Two Configurations:
+
+### Node Serves React
+
+To run this way, run `npm run build` and then `npm start`, this will run the node \
+app which serves the compiled react App.
+
+#### To set App to this configuration:
+Include `const HOST = window.location.origin.replace(/^http/, 'ws');` in App.js \
+This will ensure that the react app connects to the same url it is being hosted from, but over ws instead of http.
+
+### Development: Node and React run in parallel
+To run this way, run `npm run lol` and in another terminal window `npm start`
+remember that `npm start` is just  `node server.js`, this is also acceptable.
+
+`npm run lol` runs the react app in development mode so that any changes are recompiled automatically.
+Also suggest using `nodemon server.js`, which does the same but for the node file.
+
+#### To set App to this configuration:
+include `const HOST = "ws://localhost:8000/";` so that the client connects to the right server.
+
+#Other Info:
+
+##Database:
+
+### Connect to a different cluster:
+
 
 ## Available Scripts
 
 In the project directory, you can run:
-
 ### `npm start`
+Starts the node process, open [http://localhost:8000](http://localhost:8000) to view in browser.
+### `npm run lol`
 
 Runs the app in the development mode.\
 Open [http://localhost:3000](http://localhost:3000) to view it in the browser.

@@ -1,34 +1,30 @@
 import React, {useContext} from 'react';
-import {Link} from "react-router-dom";
+import {Link, NavLink, useHistory} from "react-router-dom";
 import UserContext from "../Auth/User";
 
 const Navigation = (props) => {
     const socket = props.socket;
     const { user, setUser} = useContext(UserContext);
-    console.log(user)
-    const logOut = () => {
-        socket.send('logOut')
-        setUser({});
-        window.localStorage.setItem('token', '');
-    }
+    let history = useHistory();
+    console.log(user);
     return (
         <div>
             <nav className="navbar navbar-expand-lg navbar-light bg-light">
 
-                <Link to="/" className="navbar-brand">
+                <NavLink to="/" className="navbar-brand">
                     Home
-                </Link>
+                </NavLink>
                 <div className=" navbar-collapse" id="navbarSupportedContent">
                     <ul className="navbar-nav mr-auto">
                         <li className="nav-item">
-                            <Link className="nav-link" to="/direct">
+                            <NavLink className="nav-link" to="/direct">
                                 Direct
-                            </Link>
+                            </NavLink>
                         </li>
                         <li className="nav-item">
-                            <Link className="nav-link" to="/new">
+                            <NavLink className="nav-link" to="/new">
                                 New Room
-                            </Link>
+                            </NavLink>
                         </li>
 
 
@@ -39,13 +35,13 @@ const Navigation = (props) => {
                                 <p>{user.username}</p>
                             </li>
                             <li className="nav-item">
-                                <Link className="nav-link" to ="/login"> Login</Link>
+                                <NavLink className="nav-link" to ="/login"> Login</NavLink>
                             </li>
                             <li className="nav-item">
-                                <Link className="nav-link" to="/signup"> Signup</Link>
+                                <NavLink className="nav-link" to="/signup"> Signup</NavLink>
                             </li>
                             <li className="nav-item">
-                                <Link className="nav-link" to="/" onClick={logOut}> Log out</Link>
+                                <NavLink className="nav-link" to="/logout"> Log out</NavLink>
                             </li>
                         </ul>
                     </div>
