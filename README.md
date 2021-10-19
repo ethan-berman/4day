@@ -22,12 +22,6 @@ Also suggest using `nodemon server.js`, which does the same but for the node fil
 #### To set App to this configuration:
 include `const HOST = "ws://localhost:8000/";` so that the client connects to the right server.
 
-#Other Info:
-
-##Database:
-
-### Connect to a different cluster:
-
 
 ## Available Scripts
 
