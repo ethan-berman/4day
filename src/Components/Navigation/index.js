@@ -1,3 +1,3 @@
 import Navigation from "./Navigation";
-
-export {Navigation};
+import HandleToasts from "./HandleToasts";
+export {Navigation, HandleToasts};

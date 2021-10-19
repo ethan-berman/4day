@@ -1,10 +1,10 @@
 import React, {useState, useContext, useEffect} from "react";
 import {UserContext} from "../Auth";
 import {ConversationItem} from "./index";
-
+import {ConversationContext } from ".";
 const MyConversations = ({socket}) => {
     const {user, setUser} = useContext(UserContext);
-    const [conversations, setConversations] = useState([]);
+    const {conversations, setConversations} = useContext(ConversationContext);
     useEffect(() => {
         console.log('mount');
         console.log(user);
@@ -13,14 +13,14 @@ const MyConversations = ({socket}) => {
             user: user
         }
 
-
+        // call back
         const returnConversationsByUserListener = (convos) => {
             console.log(convos);
             setConversations(convos);
         }
 
         socket.on('recipients', returnConversationsByUserListener)
-        socket.send(request);
+        // socket.send(request);
         return () => {
 
         }
@@ -29,11 +29,15 @@ const MyConversations = ({socket}) => {
     return (
         <div>
             {
+                conversations ? (
             conversations.map((convo) => (
                 <ConversationItem conversation={convo}/>
             ))
+                ) : (
+                    <div> No Conversations </div>
+                )
             }
         </div>
     )
-};
+}
 export default MyConversations;

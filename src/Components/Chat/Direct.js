@@ -37,6 +37,10 @@ const Direct = ({socket}) => {
         const redirect = "/conversations/" + response._id;
         history.push(redirect);
     });
+    socket.on('test-event', (res) => {
+        console.log(res);
+    })
+
     const handleChange = (e) => {
         setRecipients(Array.isArray(e) ? e.map(x => x.value) : []);
     }

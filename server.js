@@ -11,6 +11,7 @@ const app = express();
 const server = http.createServer(app);
 const ObjectId = require('mongodb').ObjectId
 const dotenv = require('dotenv');
+const _ = require('lodash');
 const io = new Server(server, {
     cors: {
         origin: "http://localhost:3000",
@@ -58,7 +59,7 @@ async function handleLogin(db, connection, data){
     const user = data.data;
     const query = {username : user.username};
     var profile = await getDocument(db, profileCollection, query);
-    console.log(profile);
+    // console.log(profile);
     if(profile.length) {
         profile = profile[0];
         if (!profile.token) {
@@ -68,7 +69,7 @@ async function handleLogin(db, connection, data){
             const query = {_id: new ObjectId(profile._id)}
             const update = {$set: {token: newToken}};
             updateOneDocument(db, profileCollection, query, update).then(function (res) {
-                console.log(res);
+                // console.log(res);
             })
         }
         var hash = await getDocument(db, userCollection, {_id: profile.hashid});
@@ -83,6 +84,12 @@ async function handleLogin(db, connection, data){
                 }
                 console.log(authenticatedUser);
                 console.log('authenticated user');
+                clients[profile._id] = connection;
+                //connect socket to all rooms
+                let obj = {
+                    user: authenticatedUser
+                }
+                connectSocketToRooms(db, connection, obj);
                 connection.emit("login-success", authenticatedUser);
             } else {
                 connection.emit('login-fail');
@@ -101,7 +108,7 @@ async function handleSignup(db, connection, data){
     bcrypt.genSalt(saltRounds, function(err, salt) {
         bcrypt.hash(user.password, salt, async function(err, hash) {
             // Store hash in database here
-            console.log(hash);
+            // console.log(hash);
             let hashKey = new ObjectId();
             let profileKey = new ObjectId();
             const obj = {
@@ -122,7 +129,7 @@ async function handleSignup(db, connection, data){
 
                     insertNewMessage(db, 'users', obj)
                     insertNewMessage(db, 'profile', profile).then(function(res){
-                            console.log(res);
+                            // console.log(res);
                             authenticatedUser._id = res.insertedId;
                             authenticatedUser.username = user.username;
                             authenticatedUser.token = token;
@@ -154,13 +161,35 @@ async function getDirectMessages(db, connection, data){
 async function handleCreateConversation(db, connection, data){
     console.log('handleCreateConversation Called');
     let conversationId = new ObjectId();
+    // console.log(conversationId);
     const recipients = [...data.recipients,data.user._id];
     var ids = [];
     for(const item of recipients){
-        ids.push(new ObjectId(item));
+        // console.log(item);
+        console.log('item flag');
+        const itemId = new ObjectId(item)
+        ids.push(itemId);
+        if(clients[item]){
+            // console.log(conversationId.toString());
+            // console.log(clients[item]);
+            // clients[item].emit("test-event", "heyyyyy");
+            let sid = clients[item]
+            const socketClient = sid;
+            let obj = {
+                t: 'heasdfjdsf'
+            }
+            // console.log(socketClient.id);
+            const s = {id: socketClient.id};
+            // io.in(s.id).emit('test-event', obj);
+            // socketClient.emit('test-event', obj);
+            socketClient.join(conversationId.toString(), function(){
+                console.log("client: " + clients[item] + "Joined rooms: " + clients[item].rooms);
+            })
+        }
+
     }
     let conversation = {
-        _id: new ObjectId(conversationId),
+        _id: conversationId,
         recipients: ids,
         created: new Date(),
     }
@@ -172,35 +201,33 @@ async function handleCreateConversation(db, connection, data){
 }
 async function getMessagesByConversation(db, connection, data){
     console.log("getMessagesByConversation Called");
-    console.log(data);
+    // console.log(data);
     let id = new ObjectId(data.conversation._id);
     const query = {cid: id};
     const conversationQuery = {_id: id};
-    console.log(query);
-    console.log(new ObjectId(data.conversation._id))
+    // console.log(query);
+    // console.log(new ObjectId(data.conversation._id))
     const messages = await getDocument(db, privateMessageCollection, query);
     const conversation = (await getDocument(db, conversationCollection, conversationQuery))[0];
-    console.log(conversation);
+    // console.log(conversation);
     const conversationUsers = await getDocument(db, profileCollection, {_id: {$in: conversation.recipients}});
     const usernameLookup = {};
     for(const user of conversationUsers){
         usernameLookup[user._id] = user.username;
     }
-    console.log(messages);
-    // connection.join(data.conversationId.toString());
-    connection.join('test', function(){
-        console.log('now in rooms: ' + connection.rooms);
+    connection.join(id.toString(), function(){
+        console.log("now in rooms: " + connection.rooms);
     });
     const returnData = {
         messages: messages,
         usernameLookup: usernameLookup
     }
-    console.log(returnData);
+    // console.log(returnData);
     connection.emit('returnMessagesByConversation', returnData);
 }
 async function handleNewPrivateMessage(db, connection, data){
     console.log('handleNewPrivateMessage Called');
-    console.log(data);
+    // console.log(data);
     let privateMessage = {
         _id: new ObjectId(),
         author: new ObjectId(data.user._id),
@@ -210,46 +237,57 @@ async function handleNewPrivateMessage(db, connection, data){
     }
     await insertNewMessage(db, privateMessageCollection, privateMessage);
     privateMessage.author_name = data.user.username;
-    // io.to(data.message.cid.toString()).emit('broadcastNewPrivateMessage',privateMessage);
-    io.to('test').emit('broadcastNewPrivateMessage', privateMessage);
+    const room = privateMessage.cid.toString();
+    io.to(room).emit('broadcastNewPrivateMessage',privateMessage);
+    connection.to(room).emit('newPrivateMessageToast', privateMessage);
+    // io.to('test').emit('broadcastNewPrivateMessage', privateMessage);
 }
 async function getConversationsByUser(db, connection, data){
     console.log('getConversationsByUser Called');
     let query = {recipients: new ObjectId(data.user._id)}
     let conversations = await getDocument(db, conversationCollection, query);
     var people = [];
-    console.log('conversations flag');
-    console.log(conversations);
+    // console.log('conversations flag');
+    // console.log(conversations);
     for(const item of conversations){
-        console.log('hasss');
-        console.log(item);
+        // console.log(item);
         people.push(...item.recipients);
     }
-    console.log('ttt');
-    console.log(people);
+    // console.log(people);
     const userQuery = {'_id': {$in: people}};
     let usersInContact = await getDocument(db, profileCollection, userQuery);
-    console.log(usersInContact);
+    // console.log(usersInContact);
     const nameLookup = {};
     for(const user of usersInContact){
         nameLookup[new ObjectId(user._id)] = user.username;
     }
     var newConvo = [];
     for(var item of conversations){
-        console.log(item);
-        console.log('omgg');
         const names = {};
         for(const person of item.recipients){
-            console.log(person);
             names[person] = nameLookup[person]
         }
         item.names = names;
         newConvo.push(item);
     }
-    console.log(newConvo);
+    // console.log(newConvo);
     connection.emit('recipients', newConvo);
-    console.log('users in contct');
-    console.log(nameLookup);
+    // console.log(nameLookup);
+}
+/*
+* Takes a database and socket as usual
+* For data it needs a user wrapped in an object*/
+async function connectSocketToRooms(db, connection, data){
+    // let conversations = getConversationsByUser(db, connection, data);
+    let query = {recipients: new ObjectId(data.user._id)}
+    let conversations = await getDocument(db, conversationCollection, query);
+    for (const conversation of conversations){
+        let id = conversation._id.toString();
+        connection.join(id, function(){
+            console.log('joined rooms: ' + connection.rooms)
+        })
+
+    }
 }
 async function determineTask(db, connection, data) {
     try {
@@ -312,16 +350,7 @@ async function constructWebSocketServer(db) {
 
 
     io.on('connection', (socket) => {
-        console.log('a user connected');
-        console.log(messages);
-        console.log('ll');
-        clients[socket.id] = socket;
-        for (var key in clients){
-            //Iterate over clients to check
-            console.log(key);
-        }
         const token = socket.handshake.auth.token;
-        console.log(token);
         if(token) {
             jwt.verify(token, secret, async function (err, decoded) {
                 if (err) {
@@ -329,14 +358,19 @@ async function constructWebSocketServer(db) {
                 } else {
                     console.log(decoded);
                     if (decoded) {
-                        let query = {_id: new ObjectId(decoded.user_id)};
+                        const user_id = new ObjectId(decoded.user_id)
+                        clients[decoded.user_id] = socket;
+                        let query = {_id: user_id};
                         getDocument(db, 'profile', query).then(function (res) {
                             console.log(res);
                             res = res[0];
+                            let obj = {
+                                user: res
+                            }
+                            connectSocketToRooms(db, socket, obj);
                             delete res.hashid;
                             socket.emit('valid-token', res);
                         });
-                        console.log('hi');
                     }
                 }
             })
@@ -354,12 +388,7 @@ async function constructWebSocketServer(db) {
         console.log((new Date()) + 'Server is listening on port: ' + port);
     });
 }
-// async function listDatabases(client){
-//     databasesList = await client.db().admin().listDatabases();
-//
-//     console.log("Databases:");
-//     databasesList.databases.forEach(db => console.log(` - ${db.name}`));
-// };
+
 async function insertNewMessage(databaseName, collectionName, documentInformation){
     var promise = new Promise(function(resolve, reject){
         databaseName.collection(collectionName).insertOne(documentInformation, function(err, result){
@@ -411,7 +440,6 @@ async function updateOneDocument(databaseName, collectionName, filter, update){
 }
 
 async function connectToMongoDB() {
-    // const url = "mongodb+srv://real:testpass@chat.0flzu.mongodb.net/myFirstDatabase?retryWrites=true&w=majority"
     const url = mongoUrl;
     const client = new MongoClient(url);
     client.connect(function(err, db){

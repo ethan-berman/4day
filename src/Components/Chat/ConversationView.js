@@ -29,12 +29,17 @@ const ConversationView = ({socket}) => {
         }
 
         const getNewPrivateMessageListener = (privateMessage) => {
-            setMessages((prevMessages) => {
-                const newMessages = {...prevMessages}
-                newMessages[privateMessage._id] = privateMessage;
-                return newMessages;
-            })
+            if(privateMessage.cid == id){
+                setMessages((prevMessages) => {
+                    const newMessages = {...prevMessages}
+                    newMessages[privateMessage._id] = privateMessage;
+                    return newMessages;
+                })
+            }
         }
+        socket.on('test-event', (obj) => {
+            console.log(obj);
+        })
         socket.on('returnMessagesByConversation', getMessagesListener);
         socket.on('broadcastNewPrivateMessage', getNewPrivateMessageListener);
         // socket.on('broadcastNewPrivateMessage', (privateMessage)=> {
@@ -70,17 +75,20 @@ const ConversationView = ({socket}) => {
                 Back
             </Link>
             <div>
-            {/*{messages.map((message)=> (*/}
-            {/*    <div>*/}
-            {/*        {message.body};*/}
-            {/*    </div>*/}
-            {/*))*/}
-            {/*}*/}
+                {/*{messages.map((message)=> (*/}
+                {/*    <div>*/}
+                {/*        {message.body};*/}
+                {/*    </div>*/}
+                {/*))*/}
+                {/*}*/}
                 <div className="message-list">
                     {[...Object.values(messages)]
                         .sort((a, b) => a.created - b.created)
                         .map((message) => (
-                            <MessageItem message={message} key={message.id} name={nameLookup[message.author]}/>
+                            <div>
+
+                                <MessageItem message={message} key={message.id} name={nameLookup[message.author]}/>
+                            </div>
                         ))
                     }
                 </div>

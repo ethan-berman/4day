@@ -9,10 +9,10 @@ const MessageItem = ({message, name}) => {
                     className="message-container row"
                     title={`Sent at ${new Date(message.created).toLocaleTimeString()}`}
                 >
-                    <span>
+                    <span className="">
                         {name}
                     </span>
-                    {/*<span className="user col">{message.author_name}:</span>*/}
+                    {/*<span className="user col">{message.author}:</span>*/}
                     <span className="message col">{message.body}</span>
                     <span className="date col">{new Date(message.created).toLocaleTimeString()}</span>
                 </div>

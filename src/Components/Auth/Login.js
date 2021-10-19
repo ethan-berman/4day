@@ -5,6 +5,7 @@ import LoaderButton from "../LoaderButton";
 import "./Login.css";
 import { useHistory } from "react-router-dom";
 import UserContext from "./User";
+import {ConversationContext} from "../Chat";
 const Login = (props) => {
     const socket = props.socket;
     const [username, setUsername] = useState("");

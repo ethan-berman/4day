@@ -1,17 +1,19 @@
 import logo from './logo.svg';
 import './App.css';
+
 import {useState, createContext, useContext, useEffect} from "react";
 import { Route, Switch} from "react-router-dom";
 import {Chat, Direct, ConversationView, ConversationContext} from "./Components/Chat";
 import {Login, Signup, Logout, UserContext} from "./Components/Auth";
-import {Navigation} from "./Components/Navigation";
+import {Navigation, HandleToasts} from "./Components/Navigation";
 
 const io = require('socket.io-client');
-const HOST = window.location.origin.replace(/^http/, 'ws');
+// const HOST = window.location.origin.replace(/^http/, 'ws');
 
-// const HOST = "ws://localhost:8000/";
+const HOST = "ws://localhost:8000/";
 // const HOST=process.env.SOCKETHOST;
 const token = window.localStorage.getItem('token');
+const _ = require('lodash');
 // const socket = io(HOST, {
 //   reconnectionDelayMax: 1000,
 //   auth: {
@@ -37,7 +39,7 @@ const options = {
 function App() {
   const [user, setUser] = useState({});
   const [socket, setSocket] = useState(null);
-  const [conversations, setConversations] = useState([]);
+  const [conversations, setConversations] = useState(null);
   useEffect(()=> {
     const newSocket = io(HOST, options);
     setSocket(newSocket);
@@ -45,23 +47,49 @@ function App() {
       // console.log(user);
       // console.log('valid token');
       setUser(authenticatedUser);
+      const request = {
+        action: 'getConversationsByUser',
+        user: authenticatedUser
+      }
+      newSocket.send(request)
     })
+    //callback for getting users
+    const returnConversationsByUserListener = (convos) => {
+      setConversations(convos);
+    }
+    const getNewMessageListener = (message) => {
+      // add unread message to given conversation
+      //   create toast of author and message, click toast to go to conversation
+      //
+      let conv = _.find(conversations, function (c){
+        return c._id === message.cid;
+      })
+      setConversations((previousState)=>{
+
+      })
+      // conv.unread = message;
+      if(message.author !== user._id){
+        // toast(message.body);
+      }
+    }
+    newSocket.on('recipients', returnConversationsByUserListener);
+    newSocket.off('broadcastNewPrivateMessage').on('broadcastNewPrivateMessage', getNewMessageListener);
+
     return () => newSocket.close();
   }, [setSocket]);
-  // const {user, setUser} = useContext(UserContext);
-  // function updateUser(authenticatedUser){
-  //   setUser(authenticatedUser);
-  // }
+
 
 
   return (
       <div className="App">
         <UserContext.Provider value={{user, setUser}}>
-          <ConversationContext value={{conversations, setConversations}}>
+          <ConversationContext.Provider value={{conversations, setConversations}}>
             <div className="container">
+              {/*<ToastContainer />*/}
               <main>
                 { socket ? (
                     <div>
+                      <HandleToasts socket={socket} />
                       <Navigation socket={socket}/>
                       <Switch>
 
@@ -95,7 +123,7 @@ function App() {
                 )}
               </main>
             </div>
-          </ConversationContext>
+          </ConversationContext.Provider>
         </UserContext.Provider>
       </div>
   );
