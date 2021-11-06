@@ -6,6 +6,10 @@ This is a practice project to demonstrate websockets, react, node js, and mongod
 The app has basic authentication, a global chat function, and direct messaging.  Currently, users can create new conversations with other users and send only text messages.  When a user gets a new message, they receive a toast notification that when clicked will take them to that conversation.  I decided to use socket.io because it offers fast, bi-directional communication which makes implementing real time transactions much simpler.
 
 ### Future Goals:
+* Clean up codebase
+* Improve UI
+* Add support for other types of media
+* Add support for finding users and adding friends
 ## Two Configurations:
 
 ### Node Serves React
